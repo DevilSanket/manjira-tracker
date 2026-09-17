@@ -1,0 +1,15 @@
+{
+  "name": "Manjira Tracker",
+  "description": "AI-powered rhythm learning platform for Manjira strikes with real-time audio analysis and gamified lessons.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera",
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API",
+    "Audio Analysis",
+    "Real-time DSP",
+    "Gamification"
+  ]
+}

@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build Outputs
+dist/
+build/
+release/
+*.tmp
+
+# Logs and environment
+coverage/
+*.log
+.DS_Store
+.env*
+!.env.example
+
+# Internal subagent artifacts
+hive/
+roster-backups/
+roster.json

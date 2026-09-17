@@ -1,0 +1,78 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@400;600;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Outfit", sans-serif;
+  
+  --color-saffron: #fb923c;
+  --color-amber-sacred: #f59e0b;
+  --color-temple-red: #ef4444;
+  --color-ash: #f8fafc;
+  
+  --animate-pulse-glow: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; filter: drop-shadow(0 0 5px rgba(251, 146, 60, 0.2)); }
+  50% { opacity: .8; filter: drop-shadow(0 0 20px rgba(251, 146, 60, 0.4)); }
+}
+
+body {
+  background-color: #ffffff;
+  background-image: 
+    radial-gradient(circle at 2px 2px, rgba(251, 146, 60, 0.05) 1px, transparent 0);
+  background-size: 40px 40px;
+  color: #1e293b;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.05);
+  border-radius: 2rem;
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+}
+
+.sacred-glow {
+  box-shadow: 0 0 30px rgba(251, 146, 60, 0.2);
+}
+
+.strike-ring {
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.bg-blobs {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.blob-1 {
+  position: absolute;
+  top: -10%;
+  right: -5%;
+  width: 600px;
+  height: 600px;
+  background: #fb923c;
+  border-radius: 9999px;
+  filter: blur(140px);
+  opacity: 0.08;
+}
+
+.blob-2 {
+  position: absolute;
+  bottom: -10%;
+  left: -5%;
+  width: 500px;
+  height: 500px;
+  background: #f59e0b;
+  border-radius: 9999px;
+  filter: blur(120px);
+  opacity: 0.06;
+}
+
