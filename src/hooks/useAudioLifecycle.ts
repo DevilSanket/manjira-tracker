@@ -1,138 +1,139 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
-import { audioManager } from '../features/audio/AudioManager';
-import { serialManager } from '../services/serialManager';
-import { useAppStore } from '../store/useAppStore';
+import { useEffect } from "react";
+import { audioManager } from "../features/audio/AudioManager";
+import { serialManager } from "../services/serialManager";
+import { pakhawajSynth } from "../services/accompaniment";
+import { useAppStore } from "../store/useAppStore";
+import { timingAt } from "../lib/rhythm";
+import { audioErrorMessage } from "../lib/audioErrors";
 
+export function processStrikeEvent(raw: any, source: "microphone" | "serial") {
+  const state = useAppStore.getState();
+  if (
+    !state.isRecording ||
+    state.audioStatus !== "ready" ||
+    state.inputMode !== source
+  )
+    return;
+  const timestamp =
+    (raw.timestamp ?? performance.now()) - state.calibration.inputLatency;
+  const timing =
+    state.metronomeStartMs !== null && state.isMetronomeActive
+      ? timingAt(timestamp, state.metronomeStartMs, state.bpm)
+      : { delta: 0, verdict: "PERFECT" as const };
+  if (
+    state.isMetronomeActive &&
+    (state.metronomeStartMs === null ||
+      timestamp < state.metronomeStartMs - 150)
+  )
+    return;
+  state.addStrike({
+    label: raw.type,
+    confidence: raw.confidence,
+    timestamp,
+    timingDeltaMs: Math.round(timing.delta),
+    timingVerdict: timing.verdict,
+    peakRms: raw.peakRms ?? raw.peak ?? 0,
+    zcr: raw.zcr ?? 0,
+    decayRatio: raw.decayRatio ?? 0,
+    peakFreq: raw.peakFreq,
+    peakProminence: raw.peakProminence,
+  });
+}
 export function useAudioLifecycle() {
-  const { 
-    isRecording, 
-    addStrike, 
-    bpm, 
-    isMetronomeActive, 
-    timeSignature, 
-    calibration, 
-    updateTheme,
+  const {
+    isRecording,
+    inputMode,
     selectedAudioDeviceId,
-    inputMode 
+    calibration,
+    serialConnected,
+    isMetronomeActive,
+    bpm,
+    timeSignature,
+    audioStatus,
   } = useAppStore();
-  const [isInitialized, setInitialized] = useState(false);
-  const nextBeatTime = useRef(0);
-  const beatInterval = useRef(0);
-  const sessionStartTime = useRef(0);
-
   useEffect(() => {
-    // Decision boundary for fallback
-    const threshold = (calibration.openZcr + calibration.closedZcr) / 2;
-    audioManager.setThreshold(threshold);
-    audioManager.setLoudnessThresholds(calibration.minStrikePeak, calibration.maxStrikePeak);
-    // Sync ML samples
-    if (calibration.openSamples?.length > 0) {
-      audioManager.setCalibrationSamples(calibration.openSamples, calibration.closedSamples);
+    audioManager.setLoudnessThresholds(
+      calibration.minStrikePeak,
+      calibration.maxStrikePeak,
+    );
+    void audioManager
+      .setCalibrationSamples(calibration.openSamples, calibration.closedSamples)
+      .catch(console.error);
+  }, [
+    calibration.openSamples,
+    calibration.closedSamples,
+    calibration.minStrikePeak,
+    calibration.maxStrikePeak,
+  ]);
+  useEffect(() => {
+    serialManager.setStrikeCallback((raw) => processStrikeEvent(raw, "serial"));
+    const onDeviceChange = () => void audioManager.refreshAvailableDevices();
+    navigator.mediaDevices?.addEventListener("devicechange", onDeviceChange);
+    return () => {
+      serialManager.setStrikeCallback(null);
+      navigator.mediaDevices?.removeEventListener(
+        "devicechange",
+        onDeviceChange,
+      );
+    };
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    const state = useAppStore.getState();
+    if (!isRecording) {
+      void audioManager.stop();
+      if (state.audioStatus !== "error") state.setAudioStatus("idle");
+      return;
     }
-  }, [calibration]);
-
-  useEffect(() => {
-    beatInterval.current = (60 / bpm) * 1000;
-  }, [bpm]);
-
-  const processStrikeEvent = useCallback((rawStrike: any) => {
-    const startTime = sessionStartTime.current || performance.now();
-    const now = performance.now();
-    const adjustedNow = now - calibration.inputLatency;
-    
-    // Timing logic with latency compensation
-    const elapsed = adjustedNow - startTime;
-    const currentBeatDur = beatInterval.current;
-    
-    let offsetInBeat = elapsed % currentBeatDur;
-    const halfBeat = currentBeatDur / 2;
-    
-    // Signed delta: negative = early, positive = late
-    let signedDelta = offsetInBeat > halfBeat ? -(currentBeatDur - offsetInBeat) : offsetInBeat;
-    let absDelta = Math.abs(signedDelta);
-
-    let verdict: 'PERFECT' | 'NEAR' | 'MISS' = 'MISS';
-    if (!isMetronomeActive) {
-      verdict = 'PERFECT';
+    state.setAudioStatus("starting");
+    if (inputMode === "serial") {
+      void audioManager.stop();
+      if (serialConnected) state.setAudioStatus("ready");
+      else {
+        state.setRecording(false);
+        state.setMetronomeActive(false);
+        state.setAudioStatus(
+          "error",
+          "Connect your USB serial device before starting.",
+        );
+      }
     } else {
-      if (absDelta < 50) verdict = 'PERFECT';
-      else if (absDelta < 150) verdict = 'NEAR';
-    }
-
-    updateTheme(rawStrike.peakRms || rawStrike.peak || 0.5);
-
-    addStrike({
-      label: rawStrike.type,
-      confidence: rawStrike.confidence,
-      timestamp: adjustedNow,
-      timingDeltaMs: Math.round(signedDelta),
-      timingVerdict: verdict,
-      peakRms: rawStrike.peakRms || rawStrike.peak || 0.5,
-      zcr: rawStrike.zcr || 0.25,
-      decayRatio: rawStrike.decayRatio || 0.2,
-      peakFreq: rawStrike.peakFreq,
-      peakProminence: rawStrike.peakProminence
-    });
-  }, [calibration.inputLatency, isMetronomeActive, addStrike, updateTheme]);
-
-  // Hook up serial callback
-  useEffect(() => {
-    serialManager.setStrikeCallback(processStrikeEvent);
-  }, [processStrikeEvent]);
-
-  useEffect(() => {
-    let aborted = false;
-
-    if (isRecording && !isInitialized) {
-      sessionStartTime.current = performance.now();
-      audioManager.initialize(processStrikeEvent, selectedAudioDeviceId).then(() => {
-        if (!aborted) setInitialized(true);
-      }).catch(err => {
-        console.error("Critical: Microphone/Transducer initialization failed", err);
-        if (!aborted) setInitialized(true); 
-      });
-    }
-
-    return () => {
-      aborted = true;
-      audioManager.stop();
-      setInitialized(false);
-    };
-  }, [isRecording, selectedAudioDeviceId, processStrikeEvent]);
-
-  // Metronome simulator (visual/internal)
-  useEffect(() => {
-    if (!isMetronomeActive) {
-        nextBeatTime.current = 0;
-        import('../services/pakhawajSynth').then(({ pakhawajSynth }) => {
-            pakhawajSynth.stop();
+      void audioManager
+        .initialize(
+          (raw) => processStrikeEvent(raw, "microphone"),
+          selectedAudioDeviceId,
+        )
+        .then(() => {
+          if (!cancelled) useAppStore.getState().setAudioStatus("ready");
+        })
+        .catch((error) => {
+          if (cancelled) return;
+          const current = useAppStore.getState();
+          current.setRecording(false);
+          current.setMetronomeActive(false);
+          current.setAudioStatus("error", audioErrorMessage(error));
         });
-        return;
     }
-
-    import('../services/pakhawajSynth').then(({ pakhawajSynth }) => {
-        pakhawajSynth.start(bpm, timeSignature);
-    });
-
-    const startTime = performance.now();
-    let rAFId: number;
-
-    const loop = () => {
-        const now = performance.now();
-        const elapsed = now - startTime;
-        const beatsPassed = Math.floor(elapsed / beatInterval.current);
-        nextBeatTime.current = startTime + ((beatsPassed + 1) * beatInterval.current);
-        rAFId = requestAnimationFrame(loop);
-    };
-
-    rAFId = requestAnimationFrame(loop);
     return () => {
-        cancelAnimationFrame(rAFId);
-        import('../services/pakhawajSynth').then(({ pakhawajSynth }) => {
-            pakhawajSynth.stop();
-        });
+      cancelled = true;
+      void audioManager.stop();
     };
-  }, [isMetronomeActive, bpm, timeSignature]);
-
-  return { isInitialized };
+  }, [isRecording, inputMode, selectedAudioDeviceId, serialConnected]);
+  useEffect(() => {
+    if (!isMetronomeActive || (isRecording && audioStatus !== "ready")) {
+      pakhawajSynth.stop();
+      useAppStore.getState().setMetronomeStart(null);
+      return;
+    }
+    void pakhawajSynth.start(bpm, timeSignature).catch((error) => {
+      const state = useAppStore.getState();
+      state.setMetronomeActive(false);
+      state.setAudioStatus("error", audioErrorMessage(error));
+    });
+    return () => {
+      pakhawajSynth.stop();
+      useAppStore.getState().setMetronomeStart(null);
+    };
+  }, [isMetronomeActive, isRecording, audioStatus, bpm, timeSignature]);
+  return { isInitialized: audioStatus === "ready" };
 }

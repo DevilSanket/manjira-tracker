@@ -11,32 +11,32 @@ export interface Lesson {
 export const LESSONS: Lesson[] = [
   {
     id: 'lesson_1',
-    name: 'Open Strike',
+    name: 'Tardi Strike',
     difficulty: 'Beginner',
     bpm: 80,
-    sequence: ['OPEN', 'OPEN', 'OPEN', 'OPEN', 'OPEN', 'OPEN', 'OPEN', 'OPEN', 'OPEN', 'OPEN'],
-    description: 'Master the resonant ringing sound! Let the Manjira sing freely.',
+    sequence: ['CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED'],
+    description: 'Master the dampened sharp sound ("तर्डी")! Grip the metal rim firmly with your fingers for a crisp beat.',
     passAccuracy: 70
   },
   {
     id: 'lesson_2',
-    name: 'Close Strike',
+    name: 'Murda Strike',
     difficulty: 'Beginner',
     bpm: 80,
-    sequence: ['CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED', 'CLOSED'],
-    description: 'Learn to quiet the sound quickly for a sharp, clear beat.',
+    sequence: ['OPEN', 'OPEN', 'OPEN', 'OPEN', 'OPEN', 'OPEN', 'OPEN', 'OPEN', 'OPEN', 'OPEN'],
+    description: 'Master the resonant ringing sound ("मुर्दा")! Strike edge-to-edge and let the Manjira ring freely.',
     passAccuracy: 70
   },
   {
     id: 'lesson_3',
-    name: 'Alternate Strikes',
+    name: 'Tardi & Murda Alternation',
     difficulty: 'Intermediate',
     bpm: 90,
     sequence: [
-      'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED',
-      'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED'
+      'CLOSED', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN',
+      'CLOSED', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN', 'CLOSED', 'OPEN'
     ],
-    description: 'Bring them together! Practice switching between Open and Close.',
+    description: 'The foundational rhythmic pattern! Anchor on Tardi (closed) then resolve to Murda (open).',
     passAccuracy: 75
   }
 ];

@@ -1,80 +1,68 @@
-# 🔔 Manjira Tracker
+# Manjira Tracker
 
-An advanced, real-time rhythm tracking and Riyaz companion designed for Indian classical **Manjira / Taal** percussion. Built with acoustic DSP spectral analysis, support for physical **clip-on contact transducers** (and Texas Instruments microcontroller ADC telemetry), authentic **Pakhawaj synthesis**, and dual **Online Web / 100% Offline Desktop** modes.
+A local Manjira practice app for Murda (open) and Tardi (closed) strikes, with microphone or USB serial input, pakhawaj accompaniment, guided lessons, calibration, and saved practice history.
 
----
+## Run it
 
-## ✨ Features
+Use Node.js **22.12 or newer** and npm.
 
-- **Dual-Mode Architecture (Online & Offline)**:
-  - **Online Web App**: Runs in any modern browser (`Chrome`, `Edge`, etc.) with Web Audio & Web Serial support.
-  - **100% Offline Desktop App**: Native Windows Electron window with an embedded local loopback server (`127.0.0.1`), requiring zero internet connection.
-- **Spectral Dual-Band Strike Classifier**:
-  - Distinguishes **Open (*Ghanti*)** ringing strikes from **Closed (*Chapti*)** damped strikes using 1024-point FFT spectral prominence ($\Delta P$) in the $2.5\text{ kHz} - 8.5\text{ kHz}$ bell resonance band.
-  - Logarithmic mechanical damping factor ($\alpha$) specifically tuned for physical contact vibration physics.
-  - Sub-40ms latency detection for rapid Bhajan tempos.
-  - Real-time fundamental cymbal resonance frequency readout (e.g. `3450 Hz`).
-- **Hardware Ingestion for Clip-On Transducers**:
-  - **Audio Device Picker**: Select your exact soundcard, USB audio interface, or line-in preamp.
-  - **Texas Instruments (TI) Microcontroller Support**: Direct digital ADC telemetry via Web Serial API (`navigator.serial`) at 115200 baud.
-  - **Transducer Cable Rumble Filter**: 100 Hz highpass filter strips mechanical cord drag and handling friction.
-  - **Anti-Clipping Monitor**: Detects signal saturation and warns users to adjust transducer gain before distortion alters classification.
-- **Live Studio & Indian Classical Taal Engine**:
-  - Interactive **Matra Beat Ribbon** with classical Bols (*Dha, Dhin, Ge, Na, Tin, Ta...*), **Sam ($X$)**, and **Khali ($0$)** markers.
-  - 5 rhythmic cycles: **Keherwa** (8), **Dadra** (6), **Roopak** (7), **Teentaal** (16), and **4/4 Western**.
-  - Authentic procedural **Pakhawaj accompaniment synthesizer**.
-  - **Tap Tempo Engine** and Early/On-Beat/Late millisecond precision gauge.
-  - Dynamic **AI Technique Coach** and interactive sound check audition pads.
-
----
-
-## 🚀 Quick Start
-
-### Prerequisites
-- Node.js (v18 or higher recommended)
-- npm
-
-### Installation
-```bash
-npm install
-```
-
----
-
-## 🖥️ Running the Application
-
-### 1. Offline Desktop App (Windows)
-- **Option A (One-Click):** Double-click `launch-app.bat` in the project root.
-- **Option B (Terminal):**
-  ```bash
-  npm run app
-  ```
-- **Option C (Live Dev Mode with Hot-Reload):**
-  ```bash
-  npm run app:dev
-  ```
-
-### 2. Online / Local Web Browser App
-```bash
+```sh
+npm ci
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000) in Chrome or Edge.
 
----
+Open http://127.0.0.1:3000 in Chrome or Edge. Microphone input requires localhost or HTTPS. Web Serial is supported in Chromium browsers; the app explains unavailable input and permission failures.
 
-## 🎛️ Connecting Clip-On Transducers
+For the production web app:
 
-1. **Via 3.5mm Mic / USB Soundcard / Preamp:**
-   - Plug your contact transducer into your computer's audio input.
-   - Open **Live Studio** and select your interface from the **Transducer Ingestion** dropdown.
-   - Strike the cymbals and check the clipping indicator.
-2. **Via Texas Instruments (TI) Microcontroller (USB Serial):**
-   - Connect your TI LaunchPad / MSP / C2000 board running ADC firmware over USB.
-   - Click **Connect TI USB** in the Transducer Ingestion bar and select the COM port.
-   - Vibration telemetry streams directly into the DSP engine!
+```sh
+npm run build
+npm start
+```
 
----
+The server binds to `127.0.0.1` by default. Configure `HOST` and `PORT` when hosting elsewhere; use HTTPS for remote microphone access.
 
-## 📜 Version History
+## Desktop
 
-See [CHANGELOG.md](CHANGELOG.md) for full release notes and architectural evolution.
+```sh
+npm run build
+npm run app
+```
+
+`launch-app.bat` starts the previously built app. For live development with hot reload, use `npm run app:dev`.
+
+Create the Windows portable release with `npm run electron:pack`, or the installer with `npm run electron:dist`. Build Windows releases on Windows and verify them on a clean Windows machine before distributing.
+
+The desktop app serves bundled files from a local loopback address and needs no internet connection. Settings are stored in Electron's user-data directory, so calibration and history survive changes to the loopback port. Web settings use local storage for that browser and origin. Clearing browser data removes web progress; export history from the Progress tab to keep a copy. Up to 100 sessions are kept.
+
+## Practice workflow
+
+1. Select an audio input in Live studio. Click **Start listening** and allow microphone access.
+2. Calibrate your instrument in a quiet room: seven seconds of room noise and five strikes of each type. Measurement starts only after access succeeds. Keep accompaniment and ambience off while calibrating.
+3. Use headphones with accompaniment to reduce playback triggering the microphone.
+4. Choose a taal and tempo in Live studio, or try a lesson and rhythm pattern.
+5. Finished lessons and rhythm sessions are saved automatically. Use **Save & reset** for studio practice.
+
+Timing feedback uses the detected onset and the scheduled accompaniment start on a common performance clock. Adjust input-delay compensation only when device delay makes accurate strikes appear late. Basic lessons score strike type at your own pace. Rhythm practice scores each expected note once and counts unplayed notes as misses; rest beats need no strike. Free play is not assigned a timing accuracy.
+
+## USB serial input
+
+See [the serial protocol](docs/serial-protocol.md). Connect USB first, then start listening. Microphone capture stays off in serial mode. Serial readings received while listening is stopped do not change practice scores.
+
+## Check the app
+
+```sh
+npm run check
+npx playwright install chromium
+npm run test:e2e
+```
+
+`check` runs TypeScript, unit/regression tests, and a production build. Browser tests use fake microphone devices, generated audio, and simulated serial input. CI runs these checks on pushes and pull requests.
+
+See [the release and hardware checklist](docs/validation.md) for physical-device and Windows validation that automated tests cannot replace.
+
+## Interface
+
+The interface uses a quiet brass-and-ink palette, responsive beat layouts, visible keyboard focus, native modal dialogs with restored focus, reduced-motion support, and locally available system fonts. The implementation was informed by [Anthropic's frontend-design skill](https://github.com/anthropics/skills/tree/main/skills/frontend-design), [Material 3 foundations](https://m3.material.io/foundations/), and [WCAG 2.2](https://www.w3.org/TR/WCAG22/). This is not a formal accessibility certification.
+
+TensorFlow is loaded only when calibration samples are available. Strike classification is experimental DSP with optional locally trained ML; displayed results need validation against real instruments and recording setups. The application does not use a remote AI service.

@@ -58,14 +58,40 @@ export const ManjiraVisual: React.FC<ManjiraVisualProps> = ({ type, isStriking, 
                 <div className="absolute inset-[35%] bg-amber-900/20 rounded-full border border-white/10" />
             </motion.div>
 
-            {/* Shockwave for Open Strike */}
+            {/* Shockwave for Open Strike (Murda) */}
             {type === 'OPEN' && isStriking && (
                 <motion.div
                     initial={{ scale: 0.5, opacity: 1 }}
                     animate={{ scale: 2.5, opacity: 0 }}
                     transition={{ duration: 0.8 }}
-                    className="absolute inset-0 border-4 border-saffron rounded-full"
+                    className="absolute inset-0 border-4 border-saffron rounded-full pointer-events-none"
                 />
+            )}
+
+            {/* Damping Clamp & Visual Contact for Closed Strike (Tardi) */}
+            {type === 'CLOSED' && (
+                <>
+                    {/* Damping Grip Indicators representing fingers resting on the brass rim */}
+                    <motion.div 
+                        animate={{ 
+                            scale: isStriking ? 0.95 : 1,
+                            opacity: isStriking ? 0.9 : 0.6 
+                        }}
+                        className="absolute inset-x-8 h-8 rounded-full border-2 border-emerald-500/40 bg-emerald-950/20 pointer-events-none flex items-center justify-between px-2"
+                    >
+                        <span className="text-[9px] font-black tracking-widest text-emerald-400 uppercase">Grip</span>
+                        <span className="text-[9px] font-black tracking-widest text-emerald-400 uppercase">Damped</span>
+                    </motion.div>
+
+                    {isStriking && (
+                        <motion.div
+                            initial={{ scale: 0.8, opacity: 0.8 }}
+                            animate={{ scale: 1.1, opacity: 0 }}
+                            transition={{ duration: 0.15, ease: "easeOut" }}
+                            className="absolute w-12 h-12 rounded-full border-2 border-emerald-400 bg-emerald-400/20 pointer-events-none"
+                        />
+                    )}
+                </>
             )}
         </div>
     );

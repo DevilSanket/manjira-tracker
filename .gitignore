@@ -20,3 +20,7 @@ coverage/
 hive/
 roster-backups/
 roster.json
+
+# Browser test artifacts
+test-results/
+playwright-report/

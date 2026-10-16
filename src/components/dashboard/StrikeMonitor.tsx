@@ -53,7 +53,7 @@ export const StrikeMonitor: React.FC = () => {
                                       ? "text-blue-500 drop-shadow-[0_4px_12px_rgba(59,130,246,0.3)]"
                                       : "text-slate-300"
                                 )}>
-                                    {lastStrike?.label || 'HEAR'}
+                                    {lastStrike?.label === 'OPEN' ? 'MURDA' : lastStrike?.label === 'CLOSED' ? 'TARDI' : 'HEAR'}
                                 </span>
                             </div>
                             

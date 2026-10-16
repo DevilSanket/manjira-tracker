@@ -1,182 +1,171 @@
-/**
- * Texas Instruments (TI) & Microcontroller Serial Hardware Manager
- * Reads digital vibration transducer telemetry via Web Serial API (navigator.serial).
- */
-import { useAppStore } from '../store/useAppStore';
-
+import { useAppStore } from "../store/useAppStore";
+import { normalizeAdc, parseTaggedStrike } from "../lib/serialProtocol";
+import { audioErrorMessage } from "../lib/audioErrors";
 export class SerialManager {
   private port: any = null;
   private reader: any = null;
-  private keepReading: boolean = false;
-  private buffer: number[] = [];
-  private onStrikeCallback: ((data: any) => void) | null = null;
-  private lastStrikeTime: number = 0;
-
-  isSupported(): boolean {
-    return typeof navigator !== 'undefined' && 'serial' in navigator;
+  private reading: Promise<void> | null = null;
+  private keepReading = false;
+  private onStrike: ((data: any) => void) | null = null;
+  private lastStrikeTime = -Infinity;
+  private lineBuffer = "";
+  private clippingTimer: ReturnType<typeof setTimeout> | null = null;
+  private capture: {
+    timestamp: number;
+    samples: number[];
+    count: number;
+  } | null = null;
+  private previousMagnitude = 0;
+  isSupported() {
+    return typeof navigator !== "undefined" && "serial" in navigator;
   }
-
-  async connect(baudRate: number = 115200): Promise<boolean> {
-    if (!this.isSupported()) {
-      throw new Error('Web Serial API is not supported in this browser. Please use Chrome, Edge, or the Desktop App.');
-    }
-
+  async connect(baudRate = 115200) {
+    if (!this.isSupported())
+      throw new Error("USB serial requires Chrome, Edge, or the desktop app.");
+    await this.disconnect();
     try {
       this.port = await (navigator as any).serial.requestPort();
       await this.port.open({ baudRate });
-
-      const store = useAppStore.getState();
-      const info = this.port.getInfo ? this.port.getInfo() : {};
-      const portLabel = info.usbVendorId ? `TI USB (VID:${info.usbVendorId.toString(16)})` : 'TI Serial COM';
-      store.setSerialConnected(true, portLabel);
-
+      const info = this.port.getInfo();
+      useAppStore
+        .getState()
+        .setSerialConnected(
+          true,
+          info.usbVendorId
+            ? `USB ${info.usbVendorId.toString(16)}`
+            : "USB serial",
+        );
       this.keepReading = true;
-      this.readLoop();
+      this.lastStrikeTime = -Infinity;
+      this.lineBuffer = "";
+      this.capture = null;
+      this.previousMagnitude = 0;
+      this.reading = this.readLoop();
       return true;
-    } catch (err) {
-      console.error('SerialManager: Connection failed', err);
-      this.disconnect();
-      throw err;
+    } catch (error) {
+      await this.disconnect();
+      throw error;
     }
   }
-
   async disconnect() {
     this.keepReading = false;
-    if (this.reader) {
-      try {
-        await this.reader.cancel();
-      } catch (e) {
-        // ignore
-      }
-      this.reader = null;
-    }
-    if (this.port) {
-      try {
-        await this.port.close();
-      } catch (e) {
-        // ignore
-      }
-      this.port = null;
-    }
-
-    useAppStore.getState().setSerialConnected(false, '');
+    if (this.reader) await this.reader.cancel().catch(() => {});
+    await this.reading?.catch(() => {});
+    this.reading = null;
+    if (this.port) await this.port.close().catch(() => {});
+    this.port = null;
+    this.reader = null;
+    this.capture = null;
+    if (this.clippingTimer) clearTimeout(this.clippingTimer);
+    useAppStore.getState().setIsClipping(false);
+    useAppStore.getState().setSerialConnected(false);
   }
-
-  setStrikeCallback(cb: (data: any) => void) {
-    this.onStrikeCallback = cb;
+  setStrikeCallback(cb: ((data: any) => void) | null) {
+    this.onStrike = cb;
   }
-
   private async readLoop() {
-    if (!this.port || !this.port.readable) return;
-
+    const reader = this.port.readable.getReader();
+    this.reader = reader;
+    const decoder = new TextDecoder();
     try {
-      const textDecoder = new TextDecoderStream();
-      const readableStreamClosed = this.port.readable.pipeTo(textDecoder.writable);
-      const reader = textDecoder.readable.getReader();
-      this.reader = reader;
-
-      let lineBuffer = '';
-
       while (this.keepReading) {
         const { value, done } = await reader.read();
         if (done) break;
-        if (value) {
-          lineBuffer += value;
-          const lines = lineBuffer.split(/\r?\n/);
-          lineBuffer = lines.pop() || '';
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (trimmed.length > 0) {
-              this.handleSerialLine(trimmed);
-            }
-          }
-        }
+        this.lineBuffer += decoder.decode(value, { stream: true });
+        const lines = this.lineBuffer.split(/\r?\n/);
+        this.lineBuffer = lines.pop() ?? "";
+        if (this.lineBuffer.length > 4096)
+          throw new Error(
+            "Serial data is missing line endings. Send one reading per line.",
+          );
+        for (const line of lines) this.handleSerialLine(line.trim());
       }
-
-      await readableStreamClosed.catch(() => {});
-    } catch (err) {
-      if (this.keepReading) {
-        console.error('SerialManager: read error', err);
-      }
+    } catch (error) {
+      if (this.keepReading)
+        useAppStore
+          .getState()
+          .setAudioStatus(
+            "error",
+            `USB connection interrupted. ${audioErrorMessage(error)}`,
+          );
     } finally {
-      this.disconnect();
+      reader.releaseLock();
+      this.reader = null;
+      const unexpected = this.keepReading;
+      this.keepReading = false;
+      if (unexpected) {
+        useAppStore.getState().setSerialConnected(false);
+        useAppStore
+          .getState()
+          .setAudioStatus(
+            "error",
+            "USB serial disconnected. Reconnect your device and try again.",
+          );
+      }
     }
   }
-
-  /**
-   * Parses telemetry lines from the TI board.
-   * Supports both raw ADC values and pre-classified protocol tags:
-   * e.g. "OPEN,92,3450", "CLOSED,85,1200", or raw numerical ADC voltages "2840"
-   */
   private handleSerialLine(line: string) {
-    const now = Date.now();
-    const upper = line.toUpperCase();
-
-    // Protocol format: TYPE,CONFIDENCE,PEAK_FREQ (e.g., "OPEN,90,3400")
-    if (upper.startsWith('OPEN') || upper.startsWith('CLOSED')) {
+    const now = performance.now();
+    const tagged = parseTaggedStrike(line);
+    if (tagged) {
       if (now - this.lastStrikeTime < 90) return;
       this.lastStrikeTime = now;
-
-      const parts = line.split(/[,: ]+/);
-      const type = parts[0].toUpperCase() === 'OPEN' ? 'OPEN' : 'CLOSED';
-      const conf = parts[1] ? parseFloat(parts[1]) / 100 : 0.92;
-      const freq = parts[2] ? parseFloat(parts[2]) : (type === 'OPEN' ? 3500 : 1800);
-
-      if (this.onStrikeCallback) {
-        this.onStrikeCallback({
-          type,
-          confidence: conf,
-          peak: 0.85,
-          zcr: type === 'OPEN' ? 0.32 : 0.14,
-          decayRatio: type === 'OPEN' ? 0.45 : 0.05,
-          peakFreq: freq,
-          peakProminence: type === 'OPEN' ? 14.5 : 5.0
-        });
-      }
+      this.onStrike?.({
+        ...tagged,
+        timestamp: now,
+        peak: 0.85,
+        zcr: 0,
+        decayRatio: 0,
+      });
       return;
     }
-
-    // Numerical ADC stream: e.g. raw vibration sample
-    const num = parseFloat(line);
-    if (!isNaN(num)) {
-      // Normalize assuming 10-bit (0..1023) or 12-bit (0..4095) or float (-1..1)
-      let normalized = num;
-      if (num > 2000) normalized = (num - 2048) / 2048;
-      else if (num > 500) normalized = (num - 512) / 512;
-
-      this.buffer.push(Math.abs(normalized));
-      if (this.buffer.length > 200) this.buffer.shift();
-
-      // Check peak clipping threshold
-      if (Math.abs(normalized) >= 0.95) {
-        useAppStore.getState().setIsClipping(true);
-      }
-
-      // Simple transient onset detection from raw ADC
-      if (this.buffer.length >= 20 && Math.abs(normalized) > 0.40) {
-        if (now - this.lastStrikeTime > 100) {
-          this.lastStrikeTime = now;
-          // Analyze decay over previous vs current samples
-          const recent = this.buffer.slice(-10);
-          const avgRecent = recent.reduce((a, b) => a + b, 0) / recent.length;
-          const isOpen = avgRecent > 0.18; // Sustained vibration vs rapid drop
-
-          if (this.onStrikeCallback) {
-            this.onStrikeCallback({
-              type: isOpen ? 'OPEN' : 'CLOSED',
-              confidence: 0.88,
-              peak: Math.min(1.0, Math.abs(normalized)),
-              zcr: isOpen ? 0.28 : 0.12,
-              decayRatio: isOpen ? 0.38 : 0.06,
-              peakFreq: isOpen ? 3400 : 2100,
-              peakProminence: isOpen ? 12 : 6
-            });
-          }
-        }
-      }
+    const state = useAppStore.getState();
+    const normalized = normalizeAdc(line, state.serialAdcBits);
+    if (normalized === null) return;
+    const magnitude = Math.abs(normalized);
+    if (magnitude >= 0.95) {
+      state.setIsClipping(true);
+      if (this.clippingTimer) clearTimeout(this.clippingTimer);
+      this.clippingTimer = setTimeout(
+        () => useAppStore.getState().setIsClipping(false),
+        1200,
+      );
     }
+    if (this.capture) {
+      this.capture.samples.push(magnitude);
+      if (this.capture.samples.length >= this.capture.count) {
+        const { timestamp, samples } = this.capture;
+        const split = Math.max(1, Math.floor(samples.length * 0.2));
+        const rms = (arr: number[]) =>
+          Math.sqrt(
+            arr.reduce((sum, v) => sum + v * v, 0) / Math.max(1, arr.length),
+          );
+        const decayRatio =
+          rms(samples.slice(Math.floor(samples.length * 0.6))) /
+          Math.max(0.0001, rms(samples.slice(0, split)));
+        this.onStrike?.({
+          type: decayRatio > 0.25 ? "OPEN" : "CLOSED",
+          confidence: 0.6,
+          timestamp,
+          peak: Math.max(...samples),
+          decayRatio,
+          zcr: 0,
+        });
+        this.capture = null;
+      }
+    } else if (
+      magnitude > 0.4 &&
+      magnitude > this.previousMagnitude * 1.35 &&
+      now - this.lastStrikeTime > 90
+    ) {
+      this.lastStrikeTime = now;
+      this.capture = {
+        timestamp: now,
+        samples: [magnitude],
+        count: Math.max(8, Math.round(state.serialSampleRate * 0.04)),
+      };
+    }
+    this.previousMagnitude = magnitude;
   }
 }
-
 export const serialManager = new SerialManager();
