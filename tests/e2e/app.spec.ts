@@ -6,15 +6,13 @@ test("studio navigation, mobile layout and keyboard controls", async ({
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
   await expect(
-    page.getByRole("heading", { name: "Make time for your rhythm." }),
+    page.getByRole("heading", { name: "Let’s play Manjira!" }),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Play accompaniment", exact: true })
-    .click();
-  await expect(page.getByText("Accompaniment on")).toBeVisible();
-  await page
-    .getByRole("button", { name: "Stop accompaniment", exact: true })
-    .click();
+  await expect(page.getByRole("button", { name: "Calibrate input" })).toHaveCount(0);
+  await page.getByLabel("Play with a beat").check();
+  await page.getByRole("button", { name: "Slow", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Slow", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByLabel("Play with a beat").uncheck();
   await page.getByRole("button", { name: "Lessons", exact: true }).click();
   await expect(
     page.getByRole("button", { name: /^start lesson$/i }),
@@ -45,13 +43,13 @@ test("microphone starts, stops and recovers from permission denial", async ({
       Promise.reject(new DOMException("Denied", "NotAllowedError"));
   });
   await page
-    .getByRole("button", { name: "Start listening", exact: true })
+    .getByRole("button", { name: "Start playing", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText(
     "Allow microphone access",
   );
   await expect(
-    page.getByRole("button", { name: "Start listening", exact: true }),
+    page.getByRole("button", { name: "Start playing", exact: true }),
   ).toBeVisible();
   await page.evaluate(() => {
     navigator.mediaDevices.getUserMedia = (window as any).originalGetUserMedia;
@@ -59,13 +57,13 @@ test("microphone starts, stops and recovers from permission denial", async ({
   await page.getByRole("button", { name: "Try again", exact: true }).click();
   await expect(page.getByText("Listening", { exact: true })).toBeVisible();
   await page
-    .getByRole("button", { name: "Stop listening", exact: true })
+    .getByRole("button", { name: "Finish", exact: true })
     .click();
   await expect(
-    page.getByText("Input idle", { exact: true }).first(),
+    page.getByText("Ready when you are", { exact: true }).first(),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Start listening", exact: true })
+    .getByRole("button", { name: "Start playing", exact: true })
     .click();
   await expect(page.getByText("Listening", { exact: true })).toBeVisible();
 });
@@ -73,6 +71,7 @@ test("calibration measures after access and restores focus on Escape", async ({
   page,
 }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "Teacher / Parent settings" }).click();
   await page.getByRole("button", { name: "Calibrate input" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page
@@ -102,9 +101,10 @@ test("serial input never requests a microphone and stops inactive events", async
       throw new Error("Should not start");
     };
   });
+  await page.getByRole("button", { name: "Teacher / Parent settings" }).click();
   await page.getByRole("button", { name: "USB serial", exact: true }).click();
   await page
-    .getByRole("button", { name: "Start listening", exact: true })
+    .getByRole("button", { name: "Start playing", exact: true })
     .click();
   await expect(page.getByRole("alert")).toContainText(
     "Connect your USB serial device",
@@ -153,6 +153,7 @@ test("lesson result and calibration preferences survive reload; export works", a
     );
   });
   await page.reload();
+  await page.getByRole("button", { name: "Teacher / Parent settings" }).click();
   await expect(page.getByText(/Delay compensation 35 ms/)).toBeVisible();
   await page.getByRole("button", { name: "Progress", exact: true }).click();
   await expect(
@@ -178,7 +179,7 @@ test("cancelled startup stops a late microphone stream", async ({ page }) => {
       });
   });
   await page
-    .getByRole("button", { name: "Start listening", exact: true })
+    .getByRole("button", { name: "Start playing", exact: true })
     .click();
   await expect
     .poll(() => page.evaluate(() => typeof (window as any).releaseMicrophone))
@@ -193,7 +194,7 @@ test("cancelled startup stops a late microphone stream", async ({ page }) => {
     )
     .toBe("ended");
   await expect(
-    page.getByRole("button", { name: "Start listening", exact: true }),
+    page.getByRole("button", { name: "Start playing", exact: true }),
   ).toBeVisible();
 });
 test("serial telemetry is ignored while idle and accepted only while listening", async ({
@@ -222,6 +223,7 @@ test("serial telemetry is ignored while idle and accepted only while listening",
         new TextEncoder().encode(line + "\n"),
       );
   });
+  await page.getByRole("button", { name: "Teacher / Parent settings" }).click();
   await page.getByRole("button", { name: "USB serial", exact: true }).click();
   await page.getByRole("button", { name: "Connect USB", exact: true }).click();
   await expect(
@@ -229,10 +231,10 @@ test("serial telemetry is ignored while idle and accepted only while listening",
   ).toBeVisible();
   await page.evaluate(() => (window as any).sendTelemetry("OPEN,92,3450"));
   await expect(
-    page.getByRole("heading", { name: "Ready when you are", exact: true }),
+    page.getByRole("heading", { name: "Your turn to play", exact: true }),
   ).toBeVisible();
   await page
-    .getByRole("button", { name: "Start listening", exact: true })
+    .getByRole("button", { name: "Start playing", exact: true })
     .click();
   await expect(page.getByText("Listening", { exact: true })).toBeVisible();
   // Connection and start interactions leave enough time for the transient cooldown.
@@ -242,17 +244,18 @@ test("serial telemetry is ignored while idle and accepted only while listening",
         (window as any).sendTelemetry("CLOSED,90,1800"),
       );
       return await page
-        .getByRole("heading", { name: "Tardi", exact: true })
+        .getByRole("heading", { name: "Tardi!", exact: true })
         .count();
     })
     .toBe(1);
   await page
-    .getByRole("button", { name: "Stop listening", exact: true })
+    .getByRole("button", { name: "Finish", exact: true })
     .click();
   await page.evaluate(() => (window as any).sendTelemetry("OPEN,92,3450"));
-  await expect(
-    page.getByRole("heading", { name: "Tardi", exact: true }),
-  ).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Your practice is saved");
+  await expect(page.getByRole("heading", { name: "Your turn to play", exact: true })).toBeVisible();
+  const sessions = await page.evaluate(() => JSON.parse(localStorage.getItem("manjira-settings")!).state.sessions);
+  expect(sessions[0].strikes).toBeGreaterThan(0);
   await page
     .getByRole("button", { name: "Disconnect USB", exact: true })
     .click();
@@ -285,6 +288,7 @@ test("complete calibration captures real synthetic audio and persists all classi
       source.start();
     };
   });
+  await page.getByRole("button", { name: "Teacher / Parent settings" }).click();
   await page.getByRole("button", { name: "Calibrate input" }).click();
   await page
     .getByRole("button", { name: "Start calibration", exact: true })
@@ -372,6 +376,7 @@ test("complete calibration captures real synthetic audio and persists all classi
     stored.closedSamples[0].decayRatio,
   );
   await page.reload();
+  await page.getByRole("button", { name: "Teacher / Parent settings" }).click();
   await expect(page.getByText("Your calibration is saved")).toBeVisible();
 });
 test("restored rhythm arena counts silent notes and saves results", async ({

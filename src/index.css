@@ -1385,3 +1385,43 @@ th {
   overflow: auto;
   background: #fff7ed;
 }
+
+/* A quiet play space: brass strike feedback, blue beat cues, generous targets. */
+.play-studio { max-width: 850px; margin: 0 auto; display: grid; gap: 20px; }
+.play-stage { text-align: center; padding: 28px 24px; display: flex; flex-direction: column; align-items: center; }
+.play-instrument { width: 130px; height: 130px; margin: 18px 0 10px; border-radius: 50%; background: #fbf2d9; color: #9b6814; display: grid; place-items: center; font-size: 100px; line-height: 1; }
+.play-instrument.closed { background: #e7eff8; color: #377baf; }
+.play-instrument.struck { animation: strike-answer .3s ease-out; }
+@keyframes strike-answer { from { transform: scale(.9); } to { transform: scale(1); } }
+.play-stage h2 { font-size: clamp(26px, 4vw, 36px); margin: 0; }
+.play-stage > p { color: var(--muted); margin: 10px 0; }
+.play-start { min-height: 60px; min-width: 220px; font-size: 20px; margin: 16px 0 4px; justify-content: center; }
+.play-recap { margin-top: 16px; color: #226042; font-weight: 600; }
+.play-sounds { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.sound-card { display: flex; align-items: center; gap: 18px; text-align: left; padding: 18px; background: white; border: 2px solid var(--line); border-radius: 16px; color: var(--ink); }
+.sound-card.selected { border-color: var(--brass); }
+.sound-card img { width: 88px; height: 88px; object-fit: contain; border-radius: 12px; }
+.sound-card > span { display: grid; gap: 6px; }
+.sound-card strong { font-size: 19px; }
+.sound-card small { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+.play-beat { display: flex; align-items: center; flex-wrap: wrap; gap: 18px; }
+.beat-toggle { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 600; min-height: 48px; cursor: pointer; }
+.beat-toggle input { width: 24px; height: 24px; accent-color: #377baf; }
+.play-speeds { margin-left: auto; }
+.play-speeds button { min-height: 46px; padding: 10px 18px; }
+.play-beat-dots { display: flex; flex-wrap: wrap; gap: 10px; width: 100%; }
+.play-beat-dots span { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #e7eff8; }
+.play-beat-dots .current { background: #275e88; color: white; outline: 2px solid #275e88; outline-offset: 3px; }
+.play-hint { margin: -10px 0 0; text-align: center; }
+.teacher-toggle { justify-self: center; min-height: 48px; }
+.teacher-settings { display: grid; gap: 22px; }
+.teacher-settings summary { cursor: pointer; padding: 12px 0; }
+@media (max-width: 600px) {
+  .play-sounds { gap: 10px; }
+  .sound-card { flex-direction: column; align-items: flex-start; padding: 14px; gap: 10px; }
+  .sound-card img { align-self: center; width: 76px; height: 76px; }
+  .sound-card strong { font-size: 16px; }
+  .play-speeds { margin-left: 0; width: 100%; }
+  .play-speeds button { flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .play-instrument.struck { animation: none; } }

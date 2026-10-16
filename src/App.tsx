@@ -3,8 +3,6 @@ import {
   Activity,
   BookOpen,
   BarChart3,
-  Mic,
-  Square,
   Volume2,
   VolumeX,
   Radio,
@@ -28,7 +26,7 @@ const RhythmTraining = lazy(() =>
   })),
 );
 const tabs = [
-  { id: "studio", label: "Live studio", icon: Radio },
+  { id: "studio", label: "Let’s play", icon: Radio },
   { id: "lessons", label: "Lessons", icon: BookOpen },
   { id: "rhythm", label: "Rhythm practice", icon: Activity },
   { id: "progress", label: "Progress", icon: BarChart3 },
@@ -55,12 +53,6 @@ export default function App() {
     state.setRecording(false);
     state.setMetronomeActive(false);
     setTab(next);
-  };
-  const toggleRecording = () => {
-    if (state.isRecording) {
-      state.setRecording(false);
-      state.setMetronomeActive(false);
-    } else state.setRecording(true);
   };
   return (
     <MotionConfig reducedMotion="user">
@@ -92,7 +84,7 @@ export default function App() {
             </span>
           </a>
           <div className="header-actions">
-            <label className="ambience-control">
+            {tab !== "studio" && <label className="ambience-control">
               {volume ? <Volume2 size={17} /> : <VolumeX size={17} />}
               <span>Ambience</span>
               <input
@@ -110,21 +102,8 @@ export default function App() {
                   else ambienceService.stop();
                 }}
               />
-            </label>
-            {tab === "studio" && (
-              <button
-                className={`button ${state.isRecording ? "stop-button" : "primary"}`}
-                onClick={toggleRecording}
-                aria-pressed={state.isRecording}
-              >
-                {state.isRecording ? <Square size={17} /> : <Mic size={17} />}
-                {state.audioStatus === "starting"
-                  ? "Cancel startup"
-                  : state.isRecording
-                    ? "Stop listening"
-                    : "Start listening"}
-              </button>
-            )}
+            </label>}
+
           </div>
         </header>
         <nav className="app-navigation" aria-label="Main navigation">
@@ -153,7 +132,7 @@ export default function App() {
             <div>
               <h1>
                 {tab === "studio"
-                  ? "Make time for your rhythm."
+                  ? "Let’s play Manjira!"
                   : tab === "lessons"
                     ? "Learn the sound. Feel the rhythm."
                     : tab === "rhythm"
@@ -162,7 +141,7 @@ export default function App() {
               </h1>
               <p>
                 {tab === "studio"
-                  ? "Your space for Manjira riyaz, from the first strike to a flowing taal."
+                  ? "Pick up your Manjira and make a sound."
                   : tab === "lessons"
                     ? "Short, focused lessons for Murda, Tardi, and listening."
                     : tab === "rhythm"
@@ -210,7 +189,12 @@ export default function App() {
             }
           >
             {tab === "studio" ? (
-              <LiveStudio />
+              <LiveStudio volume={volume} onVolumeChange={(value) => {
+                setVolume(value);
+                ambienceService.setVolume(value);
+                if (value) void ambienceService.start();
+                else ambienceService.stop();
+              }} />
             ) : tab === "lessons" ? (
               <BasicLessons />
             ) : tab === "rhythm" ? (
@@ -222,10 +206,10 @@ export default function App() {
         </main>
         <footer className="app-footer">
           <span>Manjira Tracker · Made for daily riyaz</span>
-          <span>
+          {tab !== "studio" && <span>
             {state.audioStatus === "ready" ? "Input active" : "Input idle"} ·
             Delay compensation {state.calibration.inputLatency} ms
-          </span>
+          </span>}
         </footer>
       </div>
     </MotionConfig>
